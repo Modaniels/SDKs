@@ -1,0 +1,10 @@
+LICENSE
+README.md
+pyproject.toml
+src/modexia/__init__.py
+src/modexia/client.py
+src/modexiaagentpay.egg-info/PKG-INFO
+src/modexiaagentpay.egg-info/SOURCES.txt
+src/modexiaagentpay.egg-info/dependency_links.txt
+src/modexiaagentpay.egg-info/requires.txt
+src/modexiaagentpay.egg-info/top_level.txt
