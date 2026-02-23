@@ -1,15 +1,16 @@
 name: Publish JavaScript SDK
 
-# This workflow is a starting point for publishing an NPM package from the
-# `javascriptsdk` subdirectory. It assumes you have a `package.json` at
-# the root of that folder and that you manage versions with tags (e.g. `v1.2.3`).
-
+# This workflow publishes the NPM package in `SDKs/javascriptsdk` when a tag
+# or push to `main` occurs.
 on:
   push:
     branches:
       - main
     tags:
       - 'v*.*.*'
+
+permissions:
+  contents: read
 
 jobs:
   build-and-publish:
