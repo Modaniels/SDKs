@@ -8,4 +8,4 @@ src/modexiaagentpay.egg-info/SOURCES.txt
 src/modexiaagentpay.egg-info/dependency_links.txt
 src/modexiaagentpay.egg-info/requires.txt
 src/modexiaagentpay.egg-info/top_level.txt
-tests/test_client.py
+tests/test_smoke.py
