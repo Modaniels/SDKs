@@ -30,22 +30,22 @@ The Modexia SDKs handle complex blockchain transactions, cryptographic signing, 
 ```mermaid
 graph TD;
     subgraph "Your Application Environment"
-        App[📱 Your App / System]
-        Agent[🤖 AI Agent]
+        App["📱 Your App / System"]
+        Agent["🤖 AI Agent"]
         
         subgraph "Modexia SDKs"
-            PySDK[🐍 Python SDK]
-            TSSDK[📘 TypeScript / Node SDK<br/>(Coming Soon)]
+            PySDK["🐍 Python SDK"]
+            TSSDK["📘 TypeScript / Node SDK<br/>(Coming Soon)"]
         end
     end
 
     subgraph "Modexia Infrastructure"
-        API[🌐 Modexia AgentPay API]
-        DB[(Database & Wallets)]
+        API["🌐 Modexia AgentPay API"]
+        DB[("(Database & Wallets)")]
     end
 
     subgraph "On-Chain"
-        USDC[⛓️ USDC Smart Contracts]
+        USDC["⛓️ USDC Smart Contracts"]
     end
 
     App --> PySDK

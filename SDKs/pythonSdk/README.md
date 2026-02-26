@@ -143,9 +143,9 @@ The SDK provides robust error mapping to help your agent gracefully recover from
 ```mermaid
 graph TD;
     Exception-->ModexiaError;
-    ModexiaError-->ModexiaAuthError[ModexiaAuthError: Key/Auth Issues];
-    ModexiaError-->ModexiaPaymentError[ModexiaPaymentError: Insufficient Funds / API Denials];
-    ModexiaError-->ModexiaNetworkError[ModexiaNetworkError: Connection Drops / Timeouts];
+    ModexiaError-->ModexiaAuthError["ModexiaAuthError: Key/Auth Issues"];
+    ModexiaError-->ModexiaPaymentError["ModexiaPaymentError: Insufficient Funds / API Denials"];
+    ModexiaError-->ModexiaNetworkError["ModexiaNetworkError: Connection Drops / Timeouts"];
 ```
 
 ---
