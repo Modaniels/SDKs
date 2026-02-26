@@ -1,5 +1,5 @@
 <div align="center">
-  <img src="https://raw.githubusercontent.com/Modaniel/SDKs/main/assets/modexialogo.png" alt="Modexia Logo" width="120" style="border-radius: 20px; margin-bottom: 20px;" />
+  <img src="assets/modexialogo.png" alt="Modexia Logo" width="120" style="border-radius: 20px; margin-bottom: 20px;" />
   <h1>🚀 Modexia Python SDK</h1>
   <p><b>The ultimate Python client for AI Agents to seamlessly interact with Modexia's AgentPay API.</b></p>
   
