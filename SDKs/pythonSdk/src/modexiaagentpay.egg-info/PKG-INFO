@@ -1,6 +1,6 @@
 Metadata-Version: 2.4
 Name: modexiaagentpay
-Version: 0.3.0
+Version: 0.4.0
 Summary: Modexia AgentPay — Python SDK for agent wallets & payments (USDC)
 Author-email: Modaniels <modaniels@modexia.software>
 License-Expression: MIT
@@ -23,82 +23,207 @@ Requires-Python: >=3.8
 Description-Content-Type: text/markdown
 License-File: LICENSE
 Requires-Dist: requests>=2.31.0
+Requires-Dist: httpx>=0.27.0
 Provides-Extra: dev
 Requires-Dist: pytest>=7.0; extra == "dev"
 Requires-Dist: build; extra == "dev"
 Requires-Dist: twine; extra == "dev"
 Requires-Dist: requests-mock; extra == "dev"
+Requires-Dist: pytest-asyncio; extra == "dev"
+Requires-Dist: pytest-httpx; extra == "dev"
 Dynamic: license-file
 
-# Modexia Python SDK
+<div align="center">
+  <img src="assets/modexialogo.png" alt="Modexia Logo" width="120" style="border-radius: 20px; margin-bottom: 20px;" />
+  <h1>🚀 Modexia Python SDK</h1>
+  <p><b>The ultimate Python client for AI Agents to seamlessly interact with Modexia's AgentPay API.</b></p>
+  
+  [![PyPI version](https://badge.fury.io/py/modexiaagentpay.svg)](https://badge.fury.io/py/modexiaagentpay)
+  [![Python versions](https://img.shields.io/pypi/pyversions/modexiaagentpay.svg)](https://pypi.org/project/modexiaagentpay/)
+  [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+  [![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
+</div>
 
-Lightweight Python client for interacting with the Modexia AgentPay API.
+<br />
 
-Features
-- Simple programmatic access to agent wallets and payments
-- Reliable retry/backoff for HTTP calls
-- Small surface area: `ModexiaClient` with `transfer` + `retrieve_balance` (or `get_balance`) helpers
+Welcome to the **Modexia Python SDK** (`modexiaagentpay`). Built from the ground up to give your AI agents and Python applications frictionless access to Modexia's wallet and payment infrastructure. Enable your AI to hold, manage, and transfer USDC with just a few lines of code!
 
-Installation
+---
 
-```bash
-# install locally (editable)
-pip install -e packages/SDKs/pythonSdk
+## 🌟 Getting Started: Your API Key
+
+Before writing your first integration, you will need a Modexia developer account and an API key. 
+
+1. **Visit [modexia.software](https://modexia.software)**
+2. Create or log into your developer account.
+3. Navigate to your dashboard and generate your **API Key**.
+
+For deep dives, architecture, and advanced agentic payment flows, dive into our **[Full Documentation](https://modexia.software/docs)**.
+
+---
+
+## 🏗 System Architecture & Flow
+
+The Modexia SDK handles complex blockchain transactions and HTTP retries under the hood, presenting your agents with a hyper-clean interface.
+
+```mermaid
+sequenceDiagram
+    participant Agent as 🤖 AI Agent (Your App)
+    participant SDK as 📦 Modexia Python SDK
+    participant API as 🌐 Modexia AgentPay API
+    participant Chain as ⛓️ Blockchain (USDC)
+
+    Agent->>SDK: transfer(recipient, amount, wait=True)
+    SDK->>API: POST /v1/payments (with API Key)
+    API-->>SDK: Transaction Pending (TxHash)
+    
+    rect rgb(40, 44, 52)
+    Note over SDK, API: SDK Automatically Polls API
+    loop Polling Status
+        SDK->>API: GET /v1/payments/{id}/status
+        API-->>SDK: Status: Pending...
+    end
+    end
+    
+    API->>Chain: Broadcasts USDC Transfer
+    Chain-->>API: Transaction Confirmed
+    API-->>SDK: Status: Completed
+    SDK-->>Agent: Returns Full Receipt! 🎉
 ```
 
-Quick start
+---
 
-```python
-from modexia import ModexiaClient
+## ✨ Top-Level Features
 
-client = ModexiaClient(api_key="mx_test_...")
+- **Built for AI Agents:** Designed specifically for programmatic access to agent wallets and payments without complex cryptography. Includes Agent Memory via transaction history.
+- **Intent-Based Idempotency:** Automatically deduplicates identical payment requests from your agents using intent hashing.
+- **Async & "Swarm" Support:** High-concurrency operations powered by blazing fast implementations in both synchronous and `asyncio` models.
+- **Fully Typed:** Returns robust Python dataclasses for exceptional developer experience and editor autocompletion.
+- **Reliable Networking:** Built-in retry and exponential backoff mechanisms to gracefully handle transient network errors.
 
-# you can also override the base url, or skip network validation
-# client = ModexiaClient(api_key="mx_test_...", base_url="http://custom.url", validate=False)
-# It will also respect the MODEXIA_BASE_URL environment variable
+---
 
-# read balance
-print(client.retrieve_balance())
-# print(client.get_balance()) # alias
+## 📦 Installation
 
-# make a transfer (wait=True polls for on-chain confirmation)
-receipt = client.transfer(recipient="0xabc...", amount=5.0, wait=True)
-print(receipt)
-```
-
-API (short)
-- ModexiaClient(api_key: str, timeout: int = 15, base_url: Optional[str] = None, validate: bool = True)
-	- retrieve_balance() -> str
-	- get_balance() -> str (alias for retrieve_balance)
-	- transfer(recipient: str, amount: float, idempotency_key: Optional[str] = None, wait: bool = True) -> dict
-	- smart_fetch(url, ...) -> requests.Response
-
-Errors / Exceptions
-- ModexiaAuthError — authentication problems
-- ModexiaPaymentError — payment/server errors
-- ModexiaNetworkError — network/connection failures
-
-Testing
-
-Run the unit tests with pytest from the repository root:
-
-```bash
-pytest -q packages/SDKs/pythonSdk
-```
-
-Contributing
-
-Open a PR against the `develop` branch. Keep API names stable — this package uses
-`ModexiaClient` and `transfer(...)` as the canonical surface.
-
-Install (PyPI)
+Install the production-ready package directly from PyPI:
 
 ```bash
 pip install modexiaagentpay
 ```
 
-If you prefer to try the local copy while iterating:
-
+*For local development and contribution:*
 ```bash
+git clone https://github.com/Modaniel/SDKs.git
+cd SDKs
 pip install -e packages/SDKs/pythonSdk
 ```
+
+---
+
+## 🚀 Quick Start Guide
+
+Initialize the client with your Modexia API key and empower your application to make real-world transactions instantly.
+
+```python
+from modexia import ModexiaClient
+
+# 1. Initialize the client using the API key you generated at modexia.software
+# (It also respects the MODEXIA_BASE_URL environment variable!)
+client = ModexiaClient(api_key="mx_test_your_api_key_here")
+
+# 2. Check your agent's wallet balance & history
+try:
+    balance = client.retrieve_balance() # Or client.get_balance()
+    history = client.get_history(limit=5)
+    print(f"💰 Current wallet balance: {balance} USDC")
+except Exception as e:
+    print(f"Failed to fetch balance: {e}")
+
+# 3. Execute a secure transfer!
+# Setting wait=True ensures the SDK polls until the blockchain confirms the transaction.
+receipt = client.transfer(
+    recipient="0xabc123456789def0123456789abc0123456789def", 
+    amount=5.0, 
+    wait=True
+)
+
+# Strongly-typed dataclasses mean your editor knows `receipt.txId` exists!
+if receipt.success:
+    print(f"✅ Transfer successful! TX ID: {receipt.txId}")
+```
+
+### Async Usage (Swarm Mode)
+
+For high-concurrency loops or AutoGPT-style agent networks:
+
+```python
+import asyncio
+from modexia import AsyncModexiaClient
+
+async def main():
+    client = AsyncModexiaClient(api_key="mx_test_your_api_key_here")
+    receipt = await client.transfer("0xabc...", 5.0)
+    print(f"Status: {receipt.status}")
+    await client.aclose()
+
+asyncio.run(main())
+```
+
+---
+
+## 🛠 API Reference
+
+### `ModexiaClient` & `AsyncModexiaClient`
+The core classes for all network operations.
+
+```python
+ModexiaClient(
+    api_key: str, 
+    timeout: int = 15, 
+    base_url: Optional[str] = None, 
+    validate: bool = True
+)
+```
+
+#### Core Methods
+| Method | Description | Returns |
+|--------|-------------|---------|
+| `retrieve_balance()` / `get_balance()` | Fetches the current USDC balance of your agent's wallet. | `str` |
+| `transfer(recipient, amount, idempotency_key=None, wait=True)` | Send funds to a destination. Uses intent-hashing to prevent duplicate charges. | `PaymentReceipt` |
+| `get_history(limit=5)` | Fetch the recent transaction history for Agent memory. | `TransactionHistoryResponse` |
+| `smart_fetch(url, ...)` | Auto-negotiates 402 HTTP paywalls automatically. | `Response` |
+
+### 🛑 Exception Handling
+
+The SDK provides robust error mapping to help your agent gracefully recover from failures:
+
+```mermaid
+graph TD;
+    Exception-->ModexiaError;
+    ModexiaError-->ModexiaAuthError["ModexiaAuthError: Key/Auth Issues"];
+    ModexiaError-->ModexiaPaymentError["ModexiaPaymentError: Insufficient Funds / API Denials"];
+    ModexiaError-->ModexiaNetworkError["ModexiaNetworkError: Connection Drops / Timeouts"];
+```
+
+---
+
+## 🤝 Contributing to Open Source
+
+We actively welcome community contributions to make this SDK even better. 
+
+1. **Fork & Branch:** Open a Pull Request targeting the `develop` branch.
+2. **Backward Compatibility:** Please keep API contracts stable. `ModexiaClient`, `transfer()`, and `retrieve_balance()` are canonical.
+3. **Testing:** Make sure tests pass locally before submitting.
+
+```bash
+# Run tests from the repository root
+pytest -q packages/SDKs/pythonSdk
+```
+
+---
+
+## 📄 License & Support
+
+**modexiaagentpay** is totally open-source and governed by the [MIT License](LICENSE).
+
+Need help scaling your agent swarm? Hit rate limits? Reach out to our engineering team or explore the docs at [modexia.software](https://modexia.software).
