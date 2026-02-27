@@ -60,10 +60,11 @@ sequenceDiagram
 
 ## ✨ Top-Level Features
 
-- **Built for AI Agents:** Designed specifically for programmatic access to agent wallets and payments without complex cryptography.
+- **Built for AI Agents:** Designed specifically for programmatic access to agent wallets and payments without complex cryptography. Includes Agent Memory via transaction history.
+- **Intent-Based Idempotency:** Automatically deduplicates identical payment requests from your agents using intent hashing.
+- **Async & "Swarm" Support:** High-concurrency operations powered by blazing fast implementations in both synchronous and `asyncio` models.
+- **Fully Typed:** Returns robust Python dataclasses for exceptional developer experience and editor autocompletion.
 - **Reliable Networking:** Built-in retry and exponential backoff mechanisms to gracefully handle transient network errors.
-- **Minimalist API:** A clean, strongly-typed interface via `ModexiaClient` exposing intuitive `transfer` and `retrieve_balance` methods.
-- **Zero Bloat:** Extremely lightweight. Relies purely on the standard `requests` library.
 
 ---
 
@@ -95,9 +96,10 @@ from modexia import ModexiaClient
 # (It also respects the MODEXIA_BASE_URL environment variable!)
 client = ModexiaClient(api_key="mx_test_your_api_key_here")
 
-# 2. Check your agent's wallet balance
+# 2. Check your agent's wallet balance & history
 try:
     balance = client.retrieve_balance() # Or client.get_balance()
+    history = client.get_history(limit=5)
     print(f"💰 Current wallet balance: {balance} USDC")
 except Exception as e:
     print(f"Failed to fetch balance: {e}")
@@ -110,15 +112,34 @@ receipt = client.transfer(
     wait=True
 )
 
-print(f"✅ Transfer successful! View receipt details: {receipt}")
+# Strongly-typed dataclasses mean your editor knows `receipt.txId` exists!
+if receipt.success:
+    print(f"✅ Transfer successful! TX ID: {receipt.txId}")
+```
+
+### Async Usage (Swarm Mode)
+
+For high-concurrency loops or AutoGPT-style agent networks:
+
+```python
+import asyncio
+from modexia import AsyncModexiaClient
+
+async def main():
+    client = AsyncModexiaClient(api_key="mx_test_your_api_key_here")
+    receipt = await client.transfer("0xabc...", 5.0)
+    print(f"Status: {receipt.status}")
+    await client.aclose()
+
+asyncio.run(main())
 ```
 
 ---
 
 ## 🛠 API Reference
 
-### `ModexiaClient`
-The core class for all network operations.
+### `ModexiaClient` & `AsyncModexiaClient`
+The core classes for all network operations.
 
 ```python
 ModexiaClient(
@@ -132,9 +153,10 @@ ModexiaClient(
 #### Core Methods
 | Method | Description | Returns |
 |--------|-------------|---------|
-| `retrieve_balance()` | Fetches the current USDC balance of your agent's wallet. | `str` |
-| `get_balance()` | An alias for `retrieve_balance()`. | `str` |
-| `transfer(recipient, amount, idempotency_key=None, wait=True)` | Send funds to a destination address. Automatically handles polling if `wait` is True. | `dict` (Receipt) |
+| `retrieve_balance()` / `get_balance()` | Fetches the current USDC balance of your agent's wallet. | `str` |
+| `transfer(recipient, amount, idempotency_key=None, wait=True)` | Send funds to a destination. Uses intent-hashing to prevent duplicate charges. | `PaymentReceipt` |
+| `get_history(limit=5)` | Fetch the recent transaction history for Agent memory. | `TransactionHistoryResponse` |
+| `smart_fetch(url, ...)` | Auto-negotiates 402 HTTP paywalls automatically. | `Response` |
 
 ### 🛑 Exception Handling
 

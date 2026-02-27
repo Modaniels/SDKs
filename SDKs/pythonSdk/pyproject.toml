@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "modexiaagentpay"
-version = "0.3.0"
+version = "0.4.0"
 description = "Modexia AgentPay — Python SDK for agent wallets & payments (USDC)"
 readme = "README.md"
 requires-python = ">=3.8"
@@ -26,7 +26,7 @@ classifiers = [
 	"Operating System :: OS Independent",
 	"Topic :: Software Development :: Libraries :: Python Modules",
 ]
-dependencies = ["requests>=2.31.0"]
+dependencies = ["requests>=2.31.0", "httpx>=0.27.0"]
 
 [project.urls]
 Homepage = "https://github.com/Modaniel/SDKs"
