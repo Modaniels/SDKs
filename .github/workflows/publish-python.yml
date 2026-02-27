@@ -36,6 +36,7 @@ jobs:
 
       - name: Build distributions
         run: |
+          rm -rf dist/
           python -m build
 
       - name: Publish to PyPI (pypa action)
