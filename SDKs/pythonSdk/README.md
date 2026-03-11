@@ -11,7 +11,7 @@
 
 <br />
 
-Welcome to the **Modexia Python SDK** (`modexiaagentpay`). Built from the ground up to give your AI agents and Python applications frictionless access to Modexia's wallet and payment infrastructure. Enable your AI to hold, manage, and transfer USDC with just a few lines of code!
+Welcome to the **Modexia Python SDK** (`modexiaagentpay`). Built from the ground up to give your AI agents and Python applications frictionless access to Modexia's wallet and payment infrastructure. Enable your AI to hold, manage, and transfer value with just a few lines of code!
 
 ---
 
@@ -29,14 +29,14 @@ For deep dives, architecture, and advanced agentic payment flows, dive into our 
 
 ## 🏗 System Architecture & Flow
 
-The Modexia SDK handles complex blockchain transactions and HTTP retries under the hood, presenting your agents with a hyper-clean interface.
+Currently, the SDK uses an **API Key-based Custodial Model** for maximum developer velocity.
 
 ```mermaid
 sequenceDiagram
     participant Agent as 🤖 AI Agent (Your App)
     participant SDK as 📦 Modexia Python SDK
     participant API as 🌐 Modexia AgentPay API
-    participant Chain as ⛓️ Blockchain (USDC)
+    participant Chain as ⛓️ Settlement Layer
 
     Agent->>SDK: transfer(recipient, amount, wait=True)
     SDK->>API: POST /v1/payments (with API Key)
@@ -50,18 +50,21 @@ sequenceDiagram
     end
     end
     
-    API->>Chain: Broadcasts USDC Transfer
+    API->>Chain: Finalizes Settlement On-Chain
     Chain-->>API: Transaction Confirmed
     API-->>SDK: Status: Completed
     SDK-->>Agent: Returns Full Receipt! 🎉
 ```
+
+> **Note on Future Evolution:** We are actively developing a transition to **Fully Trustless State Channels (EIP-712)**. In future versions, agents will manage their own private keys and sign off-chain cryptographic receipts natively, removing Modexia as a trusted middleman. See our [Architecture Docs](../docs/architecture.md) for details.
 
 ---
 
 ## ✨ Top-Level Features
 
 - **Built for AI Agents:** Designed specifically for programmatic access to agent wallets and payments without complex cryptography. Includes Agent Memory via transaction history.
-- **Intent-Based Idempotency:** Automatically deduplicates identical payment requests from your agents using intent hashing.
+- **Fail-Secure Defaults:** (New in v0.5.0) Built-in local validation for blockchain addresses, strict HTTPS enforcement, and configurable auto-pay ceilings protect your agent from rogue endpoints.
+- **Intent-Based Idempotency:** Automatically deduplicates identical payment requests from your agents using cryptographically secure intent hashing.
 - **Async & "Swarm" Support:** High-concurrency operations powered by blazing fast implementations in both synchronous and `asyncio` models.
 - **Fully Typed:** Returns robust Python dataclasses for exceptional developer experience and editor autocompletion.
 - **Reliable Networking:** Built-in retry and exponential backoff mechanisms to gracefully handle transient network errors.
@@ -100,7 +103,7 @@ client = ModexiaClient(api_key="mx_test_your_api_key_here")
 try:
     balance = client.retrieve_balance() # Or client.get_balance()
     history = client.get_history(limit=5)
-    print(f"💰 Current wallet balance: {balance} USDC")
+    print(f"💰 Current wallet balance: {balance} credits")
 except Exception as e:
     print(f"Failed to fetch balance: {e}")
 
@@ -146,28 +149,35 @@ ModexiaClient(
     api_key: str, 
     timeout: int = 15, 
     base_url: Optional[str] = None, 
-    validate: bool = True
+    validate: bool = True,
+    allow_insecure_http: bool = False
 )
 ```
 
 #### Core Methods
 | Method | Description | Returns |
 |--------|-------------|---------|
-| `retrieve_balance()` / `get_balance()` | Fetches the current USDC balance of your agent's wallet. | `str` |
-| `transfer(recipient, amount, idempotency_key=None, wait=True)` | Send funds to a destination. Uses intent-hashing to prevent duplicate charges. | `PaymentReceipt` |
+| `retrieve_balance()` / `get_balance()` | Fetches the current available balance of your agent's wallet. | `str` |
+| `transfer(recipient, amount, idempotency_key=None, wait=True)` | Send funds to a destination. Uses safe intent-hashing to prevent duplicate charges. Raises `TimeoutError` if `wait=True` exceeds 30s. | `PaymentReceipt` |
 | `get_history(limit=5)` | Fetch the recent transaction history for Agent memory. | `TransactionHistoryResponse` |
-| `smart_fetch(url, ...)` | Auto-negotiates 402 HTTP paywalls automatically. | `Response` |
+| `open_channel(...)`, `consume_channel(...)`, `settle_channel(...)` | Utilize High-Frequency Vaults to process thousands of zero-fee micropayments per second off-chain. | Varied |
+| `smart_fetch(url, max_auto_pay=None, ...)` | Auto-negotiates 402 HTTP paywalls autonomously. Use `max_auto_pay` to protect your wallet from extortion. Explicitly raises network/auth errors but catches payment errors. | `Response` |
 
 ### 🛑 Exception Handling
 
-The SDK provides robust error mapping to help your agent gracefully recover from failures:
+The SDK provides robust error mapping to help your agent gracefully recover from failures. You can import these directly from the `modexia` package:
+
+```python
+from modexia import ModexiaClient, ModexiaAuthError, ModexiaPaymentError, ModexiaNetworkError
+```
 
 ```mermaid
 graph TD;
+    Exception-->TimeoutError["TimeoutError: wait=True Polling exceeded 30s"];
     Exception-->ModexiaError;
     ModexiaError-->ModexiaAuthError["ModexiaAuthError: Key/Auth Issues"];
-    ModexiaError-->ModexiaPaymentError["ModexiaPaymentError: Insufficient Funds / API Denials"];
-    ModexiaError-->ModexiaNetworkError["ModexiaNetworkError: Connection Drops / Timeouts"];
+    ModexiaError-->ModexiaPaymentError["ModexiaPaymentError: Insufficient Funds / API Responses with success=False"];
+    ModexiaError-->ModexiaNetworkError["ModexiaNetworkError: Connection Drops / Invalid JSON payloads"];
 ```
 
 ---

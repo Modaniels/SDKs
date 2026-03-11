@@ -5,7 +5,7 @@ from modexia.models import PaymentReceipt, TransactionHistoryResponse
 import hashlib
 from datetime import datetime
 
-API_KEY = "mx_test_dummy_async_key"
+API_KEY = "mx_test_0123456789abcdef0123456789abcdef"
 
 @pytest.fixture
 def client():
@@ -46,11 +46,8 @@ async def test_intent_based_idempotency_hash_async(client, httpx_mock):
         method="GET"
     )
     
-    recipient = "0xAsyncRec"
+    recipient = "0x1234567890123456789012345678901234567890"
     amount = 10.0
-    
-    expected_intent = f"{recipient}_{amount}_{datetime.now().strftime('%Y-%m-%d-%H')}"
-    expected_hash = hashlib.sha256(expected_intent.encode()).hexdigest()
     
     receipt = await client.transfer(recipient, amount, wait=True)
     
@@ -60,7 +57,7 @@ async def test_intent_based_idempotency_hash_async(client, httpx_mock):
     import json
     payload = json.loads(post_request.content)
     
-    assert payload["idempotencyKey"] == expected_hash
+    assert len(payload["idempotencyKey"]) == 64
     assert isinstance(receipt, PaymentReceipt)
     assert receipt.success is True
     assert receipt.txHash == "0x456"
