@@ -35,7 +35,7 @@ Documentation = "https://github.com/Modaniel/SDKs/docs"
 Changelog = "https://github.com/Modaniel/SDKs/releases"
 
 [project.optional-dependencies]
-dev = ["pytest>=7.0", "build", "twine", "requests-mock"]
+dev = ["pytest>=7.0", "pytest-asyncio", "pytest-httpx", "build", "twine", "requests-mock"]
 
 [tool.setuptools.packages.find]
 where = ["src"]
