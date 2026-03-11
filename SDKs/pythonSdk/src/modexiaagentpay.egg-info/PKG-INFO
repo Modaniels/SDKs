@@ -26,6 +26,8 @@ Requires-Dist: requests>=2.31.0
 Requires-Dist: httpx>=0.27.0
 Provides-Extra: dev
 Requires-Dist: pytest>=7.0; extra == "dev"
+Requires-Dist: pytest-asyncio; extra == "dev"
+Requires-Dist: pytest-httpx; extra == "dev"
 Requires-Dist: build; extra == "dev"
 Requires-Dist: twine; extra == "dev"
 Requires-Dist: requests-mock; extra == "dev"
