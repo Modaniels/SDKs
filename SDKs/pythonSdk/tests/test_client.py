@@ -6,7 +6,7 @@ import hashlib
 from datetime import datetime
 
 # A dummy key to bypass live initialization checks
-API_KEY = "mx_test_dummy_key"
+API_KEY = "mx_test_0123456789abcdef0123456789abcdef"
 
 @pytest.fixture
 def client():
@@ -54,12 +54,12 @@ def test_intent_based_idempotency_hash(client):
 def test_get_history(client):
     with requests_mock.Mocker() as m:
         mock_response = {
-            "transactions": [
+            "data": [
                 {"txId": "t1", "type": "payment", "amount": "1.0", "state": "COMPLETE", "createdAt": "2026", "providerAddress": "0x1"}
             ],
             "hasMore": False
         }
-        m.get('https://sandbox.modexia.software/api/v1/user/transactions?limit=1', json=mock_response)
+        m.get('https://sandbox.modexia.software/api/v1/agent/transactions?limit=1', json=mock_response)
         
         history = client.get_history(limit=1)
         
