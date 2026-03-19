@@ -54,7 +54,7 @@ class ModexiaClient:
         session: configured `requests.Session` with retry logic.
     """
 
-    VERSION = "0.5.0"
+    VERSION = "0.5.1"
     DEFAULT_TIMEOUT = 15
 
     URLS = {

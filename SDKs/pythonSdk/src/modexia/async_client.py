@@ -35,7 +35,7 @@ class AsyncModexiaClient:
         await client.transfer(recipient, amount=1.0)
     """
 
-    VERSION = "0.5.0"
+    VERSION = "0.5.1"
     DEFAULT_TIMEOUT = 15.0
 
     URLS = {
