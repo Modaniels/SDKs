@@ -185,9 +185,9 @@ class AsyncModexiaClient:
 
     async def get_history(self, limit: int = 5) -> TransactionHistoryResponse:
         """Fetch the transaction history for the authenticated agent."""
-        data = await self._request("GET", f"/api/v1/agent/transactions?limit={limit}")
+        data = await self._request("GET", f"/api/v1/user/transactions?limit={limit}")
         transactions = []
-        for t in data.get("data", []):
+        for t in data.get("transactions", []):
             transactions.append(TransactionHistoryItem(
                 txId=t.get("txId", ""),
                 type=t.get("type", ""),

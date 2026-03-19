@@ -63,8 +63,7 @@ sequenceDiagram
 ## ✨ Top-Level Features
 
 - **Built for AI Agents:** Designed specifically for programmatic access to agent wallets and payments without complex cryptography. Includes Agent Memory via transaction history.
-- **Fail-Secure Defaults:** (New in v0.5.0) Built-in local validation for blockchain addresses, strict HTTPS enforcement, and configurable auto-pay ceilings protect your agent from rogue endpoints.
-- **Intent-Based Idempotency:** Automatically deduplicates identical payment requests from your agents using cryptographically secure intent hashing.
+- **Intent-Based Idempotency:** Automatically deduplicates identical payment requests from your agents using intent hashing.
 - **Async & "Swarm" Support:** High-concurrency operations powered by blazing fast implementations in both synchronous and `asyncio` models.
 - **Fully Typed:** Returns robust Python dataclasses for exceptional developer experience and editor autocompletion.
 - **Reliable Networking:** Built-in retry and exponential backoff mechanisms to gracefully handle transient network errors.
@@ -149,8 +148,7 @@ ModexiaClient(
     api_key: str, 
     timeout: int = 15, 
     base_url: Optional[str] = None, 
-    validate: bool = True,
-    allow_insecure_http: bool = False
+    validate: bool = True
 )
 ```
 
@@ -158,10 +156,10 @@ ModexiaClient(
 | Method | Description | Returns |
 |--------|-------------|---------|
 | `retrieve_balance()` / `get_balance()` | Fetches the current available balance of your agent's wallet. | `str` |
-| `transfer(recipient, amount, idempotency_key=None, wait=True)` | Send funds to a destination. Uses safe intent-hashing to prevent duplicate charges. Raises `TimeoutError` if `wait=True` exceeds 30s. | `PaymentReceipt` |
+| `transfer(recipient, amount, idempotency_key=None, wait=True)` | Send funds to a destination. Uses intent-hashing to prevent duplicate charges. Raises `TimeoutError` if `wait=True` exceeds 30s. | `PaymentReceipt` |
 | `get_history(limit=5)` | Fetch the recent transaction history for Agent memory. | `TransactionHistoryResponse` |
 | `open_channel(...)`, `consume_channel(...)`, `settle_channel(...)` | Utilize High-Frequency Vaults to process thousands of zero-fee micropayments per second off-chain. | Varied |
-| `smart_fetch(url, max_auto_pay=None, ...)` | Auto-negotiates 402 HTTP paywalls autonomously. Use `max_auto_pay` to protect your wallet from extortion. Explicitly raises network/auth errors but catches payment errors. | `Response` |
+| `smart_fetch(url, ...)` | Auto-negotiates 402 HTTP paywalls automatically. Explicitly raises network/auth errors but catches payment errors. | `Response` |
 
 ### 🛑 Exception Handling
 

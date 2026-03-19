@@ -5,8 +5,8 @@ from modexia.models import PaymentReceipt, TransactionHistoryResponse
 import hashlib
 from datetime import datetime
 
-# A dummy key to bypass live initialization checks. Must be 32 hex chars.
-API_KEY = "mx_test_0123456789abcdef0123456789abcdef"
+# A dummy key to bypass live initialization checks
+API_KEY = "mx_test_dummy_key"
 
 @pytest.fixture
 def client():
@@ -32,8 +32,12 @@ def test_intent_based_idempotency_hash(client):
         # Mock the wait/polling endpoint
         m.get('https://sandbox.modexia.software/api/v1/agent/transaction/tx_mocked', json={"state": "COMPLETE", "txHash": "0x123"})
         
-        recipient = "0x1234567890123456789012345678901234567890"
+        recipient = "0xRec"
         amount = 5.0
+        
+        # We know what the hash SHOULD be right now
+        expected_intent = f"{recipient}_{amount}_{datetime.now().strftime('%Y-%m-%d-%H')}"
+        expected_hash = hashlib.sha256(expected_intent.encode()).hexdigest()
         
         receipt = client.transfer(recipient, amount, wait=True)
         
@@ -42,8 +46,7 @@ def test_intent_based_idempotency_hash(client):
         post_request = next(r for r in m.request_history if r.method == "POST")
         payload = json.loads(post_request.text)
         
-        # We can no longer assert the exact hash because it uses uuid4(), but we assert it's present and correct length
-        assert len(payload["idempotencyKey"]) == 64
+        assert payload["idempotencyKey"] == expected_hash
         assert isinstance(receipt, PaymentReceipt)
         assert receipt.success is True
         assert receipt.txHash == "0x123"

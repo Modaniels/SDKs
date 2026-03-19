@@ -260,9 +260,9 @@ class ModexiaClient:
         Returns:
             TransactionHistoryResponse dataclass containing the transactions.
         """
-        data = self._request("GET", f"/api/v1/agent/transactions?limit={limit}")
+        data = self._request("GET", f"/api/v1/user/transactions?limit={limit}")
         transactions = []
-        for t in data.get("data", []):
+        for t in data.get("transactions", []):
             transactions.append(TransactionHistoryItem(
                 txId=t.get("txId", ""),
                 type=t.get("type", ""),
