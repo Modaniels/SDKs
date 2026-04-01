@@ -21,8 +21,9 @@ import os
 import time
 import hashlib
 import logging
+from decimal import Decimal
 from datetime import datetime
-from typing import Optional, Dict, Any, List
+from typing import Optional, Dict, Any, List, Union
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
 
@@ -54,7 +55,7 @@ class ModexiaClient:
         session: configured `requests.Session` with retry logic.
     """
 
-    VERSION = "0.5.1"
+    VERSION = "0.6.0"
     DEFAULT_TIMEOUT = 15
 
     URLS = {
@@ -250,6 +251,76 @@ class ModexiaClient:
             time.sleep(2)
             
         raise TimeoutError(f"Transaction {tx_id} did not settle within 30 seconds. Status remains PENDING.")
+
+    def cross_chain_transfer(self, to_chain: str, to_token: str, recipient: str, amount: Union[float, str, Decimal], idempotency_key: Optional[str] = None, wait: bool = False, timeout: int = 300) -> PaymentReceipt:
+        """Create a cross-chain CCTP transfer natively to another blockchain.
+
+        Powered by Squid Router, this method burns USDC on Base and mints/routes 
+        it to the destination chain asynchronously. Modexia covers the gas relayer fees.
+
+        Args:
+            to_chain: Destination chain ID (e.g. '1' for Ethereum, 'akashnet-2' for Akash).
+            to_token: Address of the USDC/destination token on the target chain.
+            recipient: Destination wallet address.
+            amount: USDC amount to transfer.
+            idempotency_key: Optional deduplication key.
+            wait: Whether to poll squid to wait for completion.
+            timeout: Max number of seconds to wait (default 300).
+
+        Returns:
+            PaymentReceipt with the tracking ID.
+        """
+        if not idempotency_key:
+            idempotency_key = uuid.uuid4().hex
+
+        payload = {
+            "toChain": to_chain,
+            "toToken": to_token,
+            "providerAddress": recipient,
+            "amount": str(amount),
+            "idempotencyKey": idempotency_key
+        }
+
+        data = self._request("POST", "/api/v1/agent/cctp/transfer", json=payload)
+        
+        tx_id = data.get("txId")
+        success = data.get("success", False)
+        
+        if not success or not wait or not tx_id:
+            # CCTP cross-chain transfers take several minutes, so we return PENDING immediately
+            # and leave it to the agent/polling to track it via Squidscan if needed.
+            return PaymentReceipt(
+                success=success,
+                status="PENDING",
+                txId=tx_id,
+                errorReason=data.get("error"),
+                # Include the extra arrays if multiple routes were executed (e.g. Akash gas split)
+                txIds=data.get("txIds", []),
+                squidStatusUrls=data.get("squidStatusUrls", [])
+            )
+            
+        # Optional wait block
+        start = time.time()
+        while (time.time() - start) < timeout:
+            status_data = self._request("GET", f"/api/v1/agent/cctp/status/{tx_id}")
+            
+            state = status_data.get("state", "").upper()
+            if state in ["COMPLETE", "COMPLETED", "SUCCESS"]:
+                return PaymentReceipt(
+                    success=True, 
+                    txId=tx_id, 
+                    status="COMPLETE", 
+                    txHash=status_data.get("txHash"),
+                    txIds=status_data.get("txIds", []),
+                    squidStatusUrls=status_data.get("squidStatusUrls", [])
+                )
+            
+            if state == "FAILED":
+                raise ModexiaPaymentError(f"Transfer Failed: {status_data.get('errorReason')}")
+            
+            time.sleep(5)
+            
+        raise TimeoutError(f"CCTP Transaction {tx_id} did not settle within {timeout} seconds. Status remains PENDING.")
 
     def get_history(self, limit: int = 5) -> TransactionHistoryResponse:
         """Fetch the transaction history for the authenticated agent.

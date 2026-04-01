@@ -9,6 +9,8 @@ class PaymentReceipt:
     txId: Optional[str] = None
     txHash: Optional[str] = None
     errorReason: Optional[str] = None
+    txIds: Optional[List[str]] = None
+    squidStatusUrls: Optional[List[str]] = None
     
 @dataclass
 class TransactionHistoryItem:
