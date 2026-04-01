@@ -1,9 +1,15 @@
+---
+noteId: "2603c7e02e1c11f18b0aaf76c15067dd"
+tags: []
+
+---
+
 <div align="center">
   <img src="assets/modexialogo.png" alt="Modexia Logo" width="120" style="border-radius: 20px; margin-bottom: 20px;" />
   <h1>🚀 Modexia Python SDK</h1>
   <p><b>The ultimate Python client for AI Agents to seamlessly interact with Modexia's AgentPay API.</b></p>
   
-  [![PyPI version](https://badge.fury.io/py/modexiaagentpay.svg)](https://badge.fury.io/py/modexiaagentpay)
+  [![PyPI version](https://img.shields.io/pypi/v/modexiaagentpay.svg)](https://pypi.org/project/modexiaagentpay/)
   [![Python versions](https://img.shields.io/pypi/pyversions/modexiaagentpay.svg)](https://pypi.org/project/modexiaagentpay/)
   [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
   [![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)

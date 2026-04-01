@@ -1,3 +1,9 @@
+---
+noteId: "26032ba02e1c11f18b0aaf76c15067dd"
+tags: []
+
+---
+
 <div align="center">
   <img src="assets/modexialogo.png" alt="Modexia Logo" width="150" style="border-radius: 20px; margin-bottom: 20px;" />
   <h1>🚀 Modexia Ecosystem SDKs</h1>
@@ -65,7 +71,7 @@ graph TD;
 
 | Language | Package | Version | Status | Documentation |
 |----------|---------|---------|--------|---------------|
-| **Python** | `modexiaagentpay` | `v0.6.0` [![PyPI version](https://badge.fury.io/py/modexiaagentpay.svg)](https://pypi.org/project/modexiaagentpay/) | V1 Ready 🟢 | [README](./SDKs/pythonSdk/README.md) |
+| **Python** | `modexiaagentpay` | `v0.6.0` [![PyPI version](https://img.shields.io/pypi/v/modexiaagentpay.svg)](https://pypi.org/project/modexiaagentpay/) | V1 Ready 🟢 | [README](./SDKs/pythonSdk/README.md) |
 | **Node.js** | `@modexia/agentpay` | `TBD` | Planned 🟡 | - |
 | **Go** | `modexia-go` | `TBD` | Planned 🟡 | - |
 
