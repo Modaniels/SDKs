@@ -54,7 +54,7 @@ class ModexiaClient:
         session: configured `requests.Session` with retry logic.
     """
 
-    VERSION = "0.6.1"
+    VERSION = "0.6.2"
     DEFAULT_TIMEOUT = 15
 
     URLS = {
@@ -290,7 +290,7 @@ class ModexiaClient:
             errorReason=data.get("error"),
             # Include the extra arrays if multiple routes were executed (e.g. Akash gas split)
             txIds=data.get("txIds", []),
-            squidStatusUrls=data.get("axelarScanUrls", [])
+            axelarScanUrls=data.get("axelarScanUrls", [])
         )
 
     def get_history(self, limit: int = 5) -> TransactionHistoryResponse:

@@ -67,7 +67,7 @@ graph TD;
 
 | Language | Package | Version | Status | Documentation |
 |----------|---------|---------|--------|---------------|
-| **Python** | `modexiaagentpay` | `v0.6.0` [![PyPI version](https://img.shields.io/pypi/v/modexiaagentpay.svg)](https://pypi.org/project/modexiaagentpay/) | V1 Ready 🟢 | [README](./SDKs/pythonSdk/README.md) |
+| **Python** | `modexiaagentpay` | `v0.6.2` [![PyPI version](https://img.shields.io/pypi/v/modexiaagentpay.svg)](https://pypi.org/project/modexiaagentpay/) | V1 Ready 🟢 | [README](./SDKs/pythonSdk/README.md) |
 | **Node.js** | `@modexia/agentpay` | `TBD` | Planned 🟡 | - |
 | **Go** | `modexia-go` | `TBD` | Planned 🟡 | - |
 

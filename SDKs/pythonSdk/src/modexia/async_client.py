@@ -35,7 +35,7 @@ class AsyncModexiaClient:
         await client.transfer(recipient, amount=1.0)
     """
 
-    VERSION = "0.6.1"
+    VERSION = "0.6.2"
     DEFAULT_TIMEOUT = 15.0
 
     URLS = {
@@ -220,8 +220,8 @@ class AsyncModexiaClient:
             status="PENDING",
             txId=data.get("txId"),
             errorReason=data.get("error"),
-            txIds=data.get("txIds"),
-            squidStatusUrls=data.get("axelarScanUrls")
+            txIds=data.get("txIds", []),
+            axelarScanUrls=data.get("axelarScanUrls", [])
         )
 
     async def get_history(self, limit: int = 5) -> TransactionHistoryResponse:

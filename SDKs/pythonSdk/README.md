@@ -1,3 +1,9 @@
+---
+noteId: "55b693a02ed011f18e52f3ee8fb69859"
+tags: []
+
+---
+
 <div align="center">
   <img src="assets/modexialogo.png" alt="Modexia Logo" width="120" style="border-radius: 20px; margin-bottom: 20px;" />
   <h1>🚀 Modexia Python SDK</h1>

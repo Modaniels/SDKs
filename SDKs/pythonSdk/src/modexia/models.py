@@ -10,7 +10,13 @@ class PaymentReceipt:
     txHash: Optional[str] = None
     errorReason: Optional[str] = None
     txIds: Optional[List[str]] = None
-    squidStatusUrls: Optional[List[str]] = None
+    axelarScanUrls: Optional[List[str]] = None
+
+    @property
+    def squidStatusUrls(self) -> Optional[List[str]]:
+        """Deprecated: use axelarScanUrls instead."""
+        return self.axelarScanUrls
+
     
 @dataclass
 class TransactionHistoryItem:
