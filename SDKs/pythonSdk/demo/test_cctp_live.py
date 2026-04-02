@@ -7,8 +7,8 @@ from modexia import ModexiaClient
 import uuid
 
 def test_live_cctp():
-    api_key = os.environ.get("MODEXIA_API_KEY", "mx_live_0123456789abcdef0123456789abcdef")
-    if api_key == "mx_live_0123456789abcdef0123456789abcdef":
+    api_key = os.environ.get("MODEXIA_API_KEY")
+    if not api_key:
         print("Please set MODEXIA_API_KEY environment variable to run this live test.")
         return
         

@@ -12,7 +12,10 @@ def simulate_agent_transfer():
     print(" [Research Agent] Initializing Modexia wallet...")
     try:
         # SDK is initialized using the provided API Key for the test environment
-        api_key = os.environ.get("MODEXIA_API_KEY", "mx_test_0123456789abcdef0123456789abcdef")
+        api_key = os.environ.get("MODEXIA_API_KEY")
+        if not api_key:
+            print(" [Research Agent] ERROR: Set MODEXIA_API_KEY environment variable.")
+            return
         base_url = os.environ.get("MODEXIA_BASE_URL", "http://localhost:3001")
         client = ModexiaClient(api_key=api_key, base_url=base_url)
         time.sleep(1)

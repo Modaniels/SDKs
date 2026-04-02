@@ -4,10 +4,10 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "modexiaagentpay"
-version = "0.6.0"
+version = "0.6.1"
 description = "Modexia AgentPay — Python SDK for agent wallets & payments (USDC)"
 readme = "README.md"
-requires-python = ">=3.10"
+requires-python = ">=3.8"
 license = "MIT"
 license-files = ["LICENSE"]
 keywords = ["modexia", "agentpay", "sdk", "payments", "usdc"]
@@ -19,9 +19,10 @@ classifiers = [
 	"Intended Audience :: Developers",
 	"Programming Language :: Python :: 3",
 	"Programming Language :: Python :: 3 :: Only",
+	"Programming Language :: Python :: 3.8",
+	"Programming Language :: Python :: 3.9",
 	"Programming Language :: Python :: 3.10",
 	"Programming Language :: Python :: 3.11",
-	"Programming Language :: Python :: 3.12",
 	"Operating System :: OS Independent",
 	"Topic :: Software Development :: Libraries :: Python Modules",
 ]
@@ -34,7 +35,7 @@ Documentation = "https://github.com/Modaniel/SDKs/docs"
 Changelog = "https://github.com/Modaniel/SDKs/releases"
 
 [project.optional-dependencies]
-dev = ["pytest>=7.0", "build", "twine", "requests-mock", "pytest-asyncio", "pytest-httpx"]
+dev = ["pytest>=7.0", "build", "twine", "requests-mock"]
 
 [tool.setuptools.packages.find]
 where = ["src"]
