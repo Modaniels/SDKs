@@ -1,6 +1,6 @@
 Metadata-Version: 2.4
 Name: modexiaagentpay
-Version: 0.5.0
+Version: 0.6.3
 Summary: Modexia AgentPay — Python SDK for agent wallets & payments (USDC)
 Author-email: Modaniels <modaniels@modexia.software>
 License-Expression: MIT
@@ -29,7 +29,15 @@ Requires-Dist: pytest>=7.0; extra == "dev"
 Requires-Dist: build; extra == "dev"
 Requires-Dist: twine; extra == "dev"
 Requires-Dist: requests-mock; extra == "dev"
+Requires-Dist: pytest-httpx; extra == "dev"
+Requires-Dist: pytest-asyncio; extra == "dev"
 Dynamic: license-file
+
+---
+noteId: "55b693a02ed011f18e52f3ee8fb69859"
+tags: []
+
+---
 
 <div align="center">
   <img src="assets/modexialogo.png" alt="Modexia Logo" width="120" style="border-radius: 20px; margin-bottom: 20px;" />
