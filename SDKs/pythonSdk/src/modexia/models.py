@@ -1,4 +1,4 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Optional, List, Dict, Any
 
 
@@ -27,6 +27,7 @@ class TransactionHistoryItem:
     createdAt: str
     providerAddress: Optional[str] = None
     txHash: Optional[str] = None
+    memo: Optional[str] = None
     
 @dataclass
 class TransactionHistoryResponse:
@@ -62,3 +63,31 @@ class ChannelStatus:
     expiry: str
     state: str
     isExpired: bool = False
+
+
+@dataclass
+class IntentResult:
+    """Rich result returned from the v2 intent-to-pay pipeline.
+
+    Contains the intent status, transaction details (if executed),
+    compliance/validation metadata, and actionable suggestions on rejection.
+    """
+    status: str                          # pending | approved | rejected | executed | failed
+    intent_id: Optional[str] = None
+    # Transaction details (populated on 'executed')
+    txId: Optional[str] = None
+    txIds: Optional[List[str]] = None
+    txState: Optional[str] = None
+    amount: Optional[str] = None
+    recipient: Optional[str] = None
+    # Compliance & policy metadata
+    wallet_balance_after: Optional[str] = None
+    daily_spent: Optional[str] = None
+    daily_remaining: Optional[str] = None
+    # Rejection info
+    reason: Optional[str] = None
+    code: Optional[str] = None
+    suggestion: Optional[str] = None
+    # Full validation pipeline results
+    validation: Dict[str, Any] = field(default_factory=dict)
+

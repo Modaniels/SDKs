@@ -10,15 +10,17 @@ import re
 import time
 import asyncio
 import hashlib
+import hmac
+import json
 import logging
 import httpx
 from datetime import datetime
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, List
 
 from .client import ModexiaAuthError, ModexiaPaymentError, ModexiaNetworkError
 from .models import (
     PaymentReceipt, TransactionHistoryItem, TransactionHistoryResponse,
-    ChannelReceipt, ConsumeResponse, ChannelStatus
+    ChannelReceipt, ConsumeResponse, ChannelStatus, IntentResult,
 )
 
 import uuid
@@ -35,7 +37,7 @@ class AsyncModexiaClient:
         await client.transfer(recipient, amount=1.0)
     """
 
-    VERSION = "0.6.3"
+    VERSION = "0.7.0"
     DEFAULT_TIMEOUT = 15.0
 
     URLS = {
@@ -146,7 +148,7 @@ class AsyncModexiaClient:
         """Alias for `retrieve_balance()`."""
         return await self.retrieve_balance()
 
-    async def transfer(self, recipient: str, amount: float, idempotency_key: Optional[str] = None, wait: bool = True) -> PaymentReceipt:
+    async def transfer(self, recipient: str, amount: float, idempotency_key: Optional[str] = None, wait: bool = True, memo: Optional[str] = None) -> PaymentReceipt:
         """Create a payment from the authenticated agent to `recipient` asynchronously."""
         if not idempotency_key:
             intent_str = f"{recipient}_{amount}_{datetime.now().strftime('%Y-%m-%d-%H')}"
@@ -155,6 +157,8 @@ class AsyncModexiaClient:
             ikey = idempotency_key
             
         payload = {"providerAddress": recipient, "amount": str(amount), "idempotencyKey": ikey}
+        if memo:
+            payload["memo"] = memo
         data = await self._request("POST", "/api/v1/agent/pay", json=payload)
 
         if wait and data.get("success"):
@@ -236,12 +240,121 @@ class AsyncModexiaClient:
                 state=t.get("state", ""),
                 createdAt=t.get("createdAt", ""),
                 providerAddress=t.get("providerAddress"),
-                txHash=t.get("txHash")
+                txHash=t.get("txHash"),
+                memo=t.get("memo"),
             ))
             
         return TransactionHistoryResponse(
             transactions=transactions,
             hasMore=data.get("hasMore", False)
+        )
+
+    # ═══════════════════════════════════════════════════════════════════
+    #  INTENT-TO-PAY — Signed Payment Intents (v2 API)
+    # ═══════════════════════════════════════════════════════════════════
+
+    def create_intent(
+        self,
+        recipient: str,
+        amount: float,
+        memo: Optional[str] = None,
+        action: str = "transfer",
+        ttl_seconds: int = 300,
+    ) -> str:
+        """Create and sign a payment intent token (sync — no I/O needed)."""
+        import base64
+
+        now_ms = int(time.time() * 1000)
+        payload = {
+            "action": action,
+            "amount": str(amount),
+            "currency": "USDC",
+            "expiresAt": now_ms + (ttl_seconds * 1000),
+            "idempotencyKey": str(uuid.uuid4()),
+            "nonce": now_ms,
+            "recipient": recipient,
+        }
+        if memo:
+            payload["memo"] = memo
+
+        canonical = json.dumps(payload, sort_keys=True, separators=(',', ':'))
+        signature = hmac.new(
+            self.api_key.encode(),
+            canonical.encode(),
+            hashlib.sha256,
+        ).hexdigest()
+
+        payload_b64 = base64.urlsafe_b64encode(canonical.encode()).decode().rstrip('=')
+        return f"{payload_b64}.{signature}"
+
+    async def submit_intent(self, intent_token: str) -> IntentResult:
+        """Submit a signed intent token to the v2 intent API."""
+        data = await self._request("POST", "/api/v2/intents/submit", json={"intent_token": intent_token})
+        return self._build_intent_result(data)
+
+    async def pay(self, recipient: str, amount: float, memo: Optional[str] = None, wait: bool = True) -> IntentResult:
+        """High-level intent-based payment — create, sign, submit, and optionally poll."""
+        token = self.create_intent(recipient, amount, memo=memo)
+        result = await self.submit_intent(token)
+
+        if wait and result.status == "executed" and result.txId:
+            try:
+                receipt = await self._poll_status(result.txId)
+                result.txState = receipt.status
+            except (TimeoutError, ModexiaPaymentError):
+                pass
+
+        return result
+
+    async def get_intent(self, intent_id: str) -> IntentResult:
+        """Retrieve the status of a previously submitted intent."""
+        data = await self._request("GET", f"/api/v2/intents/{intent_id}")
+        return IntentResult(
+            status=data.get("status", "unknown"),
+            intent_id=data.get("intent_id"),
+            txId=data.get("circleTxId"),
+            amount=data.get("amount"),
+            recipient=data.get("recipient"),
+            reason=data.get("rejectionReason"),
+            code=data.get("rejectionCode"),
+            validation=data.get("validation") or {},
+        )
+
+    async def list_intents(self, limit: int = 20) -> List[IntentResult]:
+        """List recent payment intents."""
+        data = await self._request("GET", f"/api/v2/intents?limit={limit}")
+        return [
+            IntentResult(
+                status=i.get("status", ""),
+                intent_id=i.get("id"),
+                txId=i.get("circleTxId"),
+                amount=str(i.get("amount", "")),
+                recipient=i.get("recipient"),
+                code=i.get("rejectionCode"),
+            )
+            for i in data.get("data", [])
+        ]
+
+    @staticmethod
+    def _build_intent_result(data: Dict[str, Any]) -> IntentResult:
+        """Parse a v2 intent API response into an IntentResult."""
+        tx = data.get("tx") or {}
+        meta = data.get("metadata") or {}
+        return IntentResult(
+            status=data.get("status", "unknown"),
+            intent_id=data.get("intent_id"),
+            txId=tx.get("txId"),
+            txIds=tx.get("txIds"),
+            txState=tx.get("state"),
+            amount=tx.get("amount") or data.get("amount"),
+            recipient=tx.get("recipient") or data.get("recipient"),
+            wallet_balance_after=meta.get("wallet_balance_after"),
+            daily_spent=meta.get("daily_spent"),
+            daily_remaining=meta.get("daily_remaining"),
+            reason=data.get("reason"),
+            code=data.get("code"),
+            suggestion=data.get("suggestion"),
+            validation=data.get("validation") or {},
         )
 
     # ═══════════════════════════════════════════════════════════════════

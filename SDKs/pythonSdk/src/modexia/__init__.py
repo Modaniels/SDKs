@@ -14,6 +14,7 @@ from .async_client import AsyncModexiaClient
 from .models import (
     PaymentReceipt, TransactionHistoryItem, TransactionHistoryResponse,
     ChannelReceipt, ConsumeResponse, ChannelStatus,
+    IntentResult,
 )
 
 __all__ = [
@@ -29,4 +30,5 @@ __all__ = [
     "ChannelReceipt",
     "ConsumeResponse",
     "ChannelStatus",
+    "IntentResult",
 ]

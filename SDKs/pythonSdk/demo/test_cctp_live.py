@@ -12,7 +12,7 @@ def test_live_cctp():
         print("Please set MODEXIA_API_KEY environment variable to run this live test.")
         return
         
-    print(f"Initializing ModexiaClient with API key: {api_key[:15]}...")
+    print("Initializing ModexiaClient with API key from environment.")
     
     # We must explicitly route to localhost instead of sandbox.modexia.software
     # because our local app.js changes haven't been deployed to the public server yet!

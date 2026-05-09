@@ -1,5 +1,5 @@
 ---
-noteId: "55b693a02ed011f18e52f3ee8fb69859"
+noteId: "8d854f304bd411f18bfe97159fe8ca5e"
 tags: []
 
 ---
@@ -21,6 +21,22 @@ Welcome to the **Modexia Python SDK** (`modexiaagentpay`). Built from the ground
 
 ---
 
+## 📋 What's New in v0.7.0
+
+> **Intent-to-Pay** — A new cryptographically signed payment system that gives agents rich compliance feedback, audit trails, and policy-aware spending.
+
+| Feature | Description |
+|---------|-------------|
+| **`client.pay()`** | High-level intent-based payment — create, sign, submit, and poll in one call |
+| **`client.create_intent()`** | Create an HMAC-SHA256 signed intent token |
+| **`client.submit_intent()`** | Submit a signed token through the 11-step validation pipeline |
+| **`client.get_intent()`** | Look up the status of a previously submitted intent |
+| **`client.list_intents()`** | List recent intents for audit trail review |
+| **`IntentResult`** | New dataclass with status, compliance metadata, daily spend, and suggestions |
+| **`memo` parameter** | All payment methods now accept a `memo` for audit trail visibility |
+
+---
+
 ## 🌟 Getting Started: Your API Key
 
 Before writing your first integration, you will need a Modexia developer account and an API key. 
@@ -35,41 +51,67 @@ For deep dives, architecture, and advanced agentic payment flows, dive into our 
 
 ## 🏗 System Architecture & Flow
 
-Currently, the SDK uses an **API Key-based Custodial Model** for maximum developer velocity.
+The SDK supports two payment flows: the classic **v1 transfer** and the new **v2 intent-based** pipeline.
+
+### Intent-to-Pay Flow (v2 — Recommended)
 
 ```mermaid
 sequenceDiagram
-    participant Agent as 🤖 AI Agent (Your App)
-    participant SDK as 📦 Modexia Python SDK
-    participant API as 🌐 Modexia AgentPay API
-    participant Chain as ⛓️ Settlement Layer
+    participant Agent as 🤖 AI Agent
+    participant SDK as 📦 Python SDK
+    participant API as 🌐 Modexia API
+    participant Pipeline as 🔒 Validation Pipeline
+    participant Chain as ⛓️ Blockchain
 
-    Agent->>SDK: transfer(recipient, amount, wait=True)
-    SDK->>API: POST /v1/payments (with API Key)
-    API-->>SDK: Transaction Pending (TxHash)
+    Agent->>SDK: client.pay(recipient, amount, memo="...")
+    SDK->>SDK: Create intent JSON + HMAC-SHA256 sign
+    SDK->>API: POST /v2/intents/submit (signed token)
+    API->>API: Verify HMAC signature
+    API->>Pipeline: Run 11-step validation
     
-    rect rgb(40, 44, 52)
-    Note over SDK, API: SDK Automatically Polls API
-    loop Polling Status
-        SDK->>API: GET /v1/payments/{id}/status
-        API-->>SDK: Status: Pending...
+    Note over Pipeline: amount ✓ recipient ✓ expiry ✓<br/>nonce ✓ wallet ✓ KYC ✓<br/>SBT ✓ policy ✓ limits ✓
+
+    alt All checks pass
+        Pipeline-->>API: approved
+        API->>Chain: Execute on-chain transfer
+        Chain-->>API: txId
+        API-->>SDK: IntentResult(status="executed", txId, daily_remaining, balance)
+        SDK-->>Agent: Rich result with compliance metadata 🎉
+    else Validation fails
+        Pipeline-->>API: rejected (code + suggestion)
+        API-->>SDK: IntentResult(status="rejected", reason, suggestion)
+        SDK-->>Agent: Actionable rejection with fix suggestion
     end
-    end
-    
-    API->>Chain: Finalizes Settlement On-Chain
-    Chain-->>API: Transaction Confirmed
-    API-->>SDK: Status: Completed
-    SDK-->>Agent: Returns Full Receipt! 🎉
 ```
 
-> **Note on Future Evolution:** We are actively developing a transition to **Fully Trustless State Channels (EIP-712)**. In future versions, agents will manage their own private keys and sign off-chain cryptographic receipts natively, removing Modexia as a trusted middleman. See our [Architecture Docs](../docs/architecture.md) for details.
+### Classic Transfer Flow (v1 — Still Supported)
+
+```mermaid
+sequenceDiagram
+    participant Agent as 🤖 AI Agent
+    participant SDK as 📦 Python SDK
+    participant API as 🌐 Modexia API
+    participant Chain as ⛓️ Blockchain
+
+    Agent->>SDK: client.transfer(recipient, amount)
+    SDK->>API: POST /v1/agent/pay
+    Note over API: Internally creates synthetic intent<br/>and runs same validation pipeline
+    API->>Chain: Execute transfer
+    Chain-->>API: txId
+    API-->>SDK: {success: true, txId}
+    SDK-->>Agent: PaymentReceipt 🎉
+```
+
+> **Note:** The v1 `transfer()` method now internally routes through the same intent validation pipeline. You get the same compliance enforcement with zero code changes.
 
 ---
 
 ## ✨ Top-Level Features
 
-- **Built for AI Agents:** Designed specifically for programmatic access to agent wallets and payments without complex cryptography. Includes Agent Memory via transaction history.
-- **Intent-Based Idempotency:** Automatically deduplicates identical payment requests from your agents using intent hashing.
+- **Intent-Based Payments:** Cryptographically signed payment intents with HMAC-SHA256 verification, replay protection, and full compliance pipeline.
+- **Rich Compliance Feedback:** Know exactly why a payment was rejected, with actionable suggestions and your daily spend/remaining budget.
+- **Audit Trail:** Every payment records a `memo` explaining why the AI made the payment — visible in the dashboard.
+- **Built for AI Agents:** Designed specifically for programmatic access to agent wallets and payments without complex cryptography.
 - **Async & "Swarm" Support:** High-concurrency operations powered by blazing fast implementations in both synchronous and `asyncio` models.
 - **Fully Typed:** Returns robust Python dataclasses for exceptional developer experience and editor autocompletion.
 - **Reliable Networking:** Built-in retry and exponential backoff mechanisms to gracefully handle transient network errors.
@@ -95,32 +137,50 @@ pip install -e packages/SDKs/pythonSdk
 
 ## 🚀 Quick Start Guide
 
-Initialize the client with your Modexia API key and empower your application to make real-world transactions instantly.
+### Intent-Based Payment (v2 — Recommended)
+
+The `pay()` method is the new recommended way to make payments. It creates a signed intent, validates it through the compliance pipeline, and returns rich metadata.
 
 ```python
 from modexia import ModexiaClient
 
-# 1. Initialize the client using the API key you generated at modexia.software
-# (It also respects the MODEXIA_BASE_URL environment variable!)
 client = ModexiaClient(api_key="mx_test_your_api_key_here")
 
-# 2. Check your agent's wallet balance & history
-try:
-    balance = client.retrieve_balance() # Or client.get_balance()
-    history = client.get_history(limit=5)
-    print(f"💰 Current wallet balance: {balance} credits")
-except Exception as e:
-    print(f"Failed to fetch balance: {e}")
-
-# 3. Execute a secure transfer!
-# Setting wait=True ensures the SDK polls until the blockchain confirms the transaction.
-receipt = client.transfer(
-    recipient="0xabc123456789def0123456789abc0123456789def", 
-    amount=5.0, 
-    wait=True
+# Make a payment with full compliance feedback
+result = client.pay(
+    recipient="0xabc123456789def0123456789abc0123456789def",
+    amount=5.0,
+    memo="Paying for GPT-4 API call to summarize document #42"
 )
 
-# Strongly-typed dataclasses mean your editor knows `receipt.txId` exists!
+if result.status == "executed":
+    print(f"✅ Payment executed! TX ID: {result.txId}")
+    print(f"💰 Balance after: {result.wallet_balance_after} USDC")
+    print(f"📊 Daily remaining: {result.daily_remaining} USDC")
+elif result.status == "rejected":
+    print(f"❌ Rejected: {result.reason}")
+    print(f"💡 Suggestion: {result.suggestion}")
+```
+
+### Classic Transfer (v1 — Backwards Compatible)
+
+```python
+from modexia import ModexiaClient
+
+client = ModexiaClient(api_key="mx_test_your_api_key_here")
+
+# Check balance
+balance = client.retrieve_balance()
+print(f"💰 Balance: {balance} USDC")
+
+# Simple transfer (still works, now with memo support)
+receipt = client.transfer(
+    recipient="0xabc123456789def0123456789abc0123456789def",
+    amount=5.0,
+    wait=True,
+    memo="Paying vendor for compute resources"
+)
+
 if receipt.success:
     print(f"✅ Transfer successful! TX ID: {receipt.txId}")
 ```
@@ -134,10 +194,19 @@ import asyncio
 from modexia import AsyncModexiaClient
 
 async def main():
-    client = AsyncModexiaClient(api_key="mx_test_your_api_key_here")
-    receipt = await client.transfer("0xabc...", 5.0)
-    print(f"Status: {receipt.status}")
-    await client.aclose()
+    async with AsyncModexiaClient(api_key="mx_test_your_api_key_here") as client:
+        await client.validate_session()
+
+        # Intent-based payment (recommended)
+        result = await client.pay(
+            "0xabc...", 5.0,
+            memo="Async swarm payment for data processing"
+        )
+        print(f"Status: {result.status}, Daily remaining: {result.daily_remaining}")
+
+        # Or classic transfer
+        receipt = await client.transfer("0xabc...", 2.0, memo="Legacy flow")
+        print(f"TX: {receipt.txId}")
 
 asyncio.run(main())
 ```
@@ -158,16 +227,119 @@ ModexiaClient(
 )
 ```
 
-#### Core Methods
+### Intent-to-Pay Methods (v2)
+
+| Method | Description | Returns |
+|--------|-------------|---------|
+| `pay(recipient, amount, memo=None, wait=True)` | **Recommended.** High-level intent-based payment — creates, signs, submits, and polls. Returns rich compliance metadata. | `IntentResult` |
+| `create_intent(recipient, amount, memo=None, action="transfer", ttl_seconds=300)` | Create a signed intent token locally (no network call). The token is `base64url(payload).hex(hmac_sha256(payload, api_key))`. | `str` |
+| `submit_intent(intent_token)` | Submit a signed intent token for validation and execution. | `IntentResult` |
+| `get_intent(intent_id)` | Retrieve the status of a previously submitted intent by UUID. | `IntentResult` |
+| `list_intents(limit=20)` | List recent payment intents for audit trail review. | `List[IntentResult]` |
+
+### Classic Methods (v1)
+
 | Method | Description | Returns |
 |--------|-------------|---------|
 | `retrieve_balance()` / `get_balance()` | Fetches the current available balance of your agent's wallet. | `str` |
-| `transfer(recipient, amount, idempotency_key=None, wait=True)` | Send funds to a destination. Uses intent-hashing to prevent duplicate charges. Raises `TimeoutError` if `wait=True` exceeds 30s. | `PaymentReceipt` |
-| `get_history(limit=5)` | Fetch the recent transaction history for Agent memory. | `TransactionHistoryResponse` |
-| `open_channel(...)`, `consume_channel(...)`, `settle_channel(...)` | Utilize High-Frequency Vaults to process thousands of zero-fee micropayments per second off-chain. | Varied |
-| `smart_fetch(url, ...)` | Auto-negotiates 402 HTTP paywalls automatically. Explicitly raises network/auth errors but catches payment errors. | `Response` |
+| `transfer(recipient, amount, idempotency_key=None, wait=True, memo=None)` | Send funds to a destination. Uses intent-hashing to prevent duplicate charges. | `PaymentReceipt` |
+| `cross_chain_transfer(to_chain, to_token, recipient, amount)` | Cross-chain CCTP transfer via Squid Router. | `PaymentReceipt` |
+| `get_history(limit=5)` | Fetch the recent transaction history for Agent memory. Now includes `memo`. | `TransactionHistoryResponse` |
 
-### 🛑 Exception Handling
+### Vault / Micropayment Channel Methods
+
+| Method | Description | Returns |
+|--------|-------------|---------|
+| `open_channel(provider, deposit, duration_hours=24)` | Open a payment channel with on-chain deposit. | `dict` |
+| `consume_channel(channel_id, amount, idempotency_key=None)` | Execute an instant, gas-free micro-payment inside a channel. | `ConsumeResponse` |
+| `settle_channel(channel_id)` | Settle a channel on-chain — pays provider, refunds remainder. | `dict` |
+| `get_channel(channel_id)` | Get the current status of a payment channel. | `ChannelStatus` |
+| `list_channels(limit=50)` | List all payment channels for the authenticated agent. | `List[ChannelStatus]` |
+
+### Other
+
+| Method | Description | Returns |
+|--------|-------------|---------|
+| `smart_fetch(method, url, **kwargs)` | Auto-negotiates 402 HTTP paywalls automatically. | `Response` |
+
+---
+
+## 📊 Data Models
+
+### `IntentResult` (New in v0.7.0)
+
+The rich response returned from the intent-to-pay pipeline:
+
+```python
+@dataclass
+class IntentResult:
+    status: str                          # pending | approved | rejected | executed | failed
+    intent_id: Optional[str]             # UUID for tracking
+    # Transaction details (populated on 'executed')
+    txId: Optional[str]                  # Circle transaction ID
+    txIds: Optional[List[str]]           # Multiple IDs for multi-leg txs
+    txState: Optional[str]               # PENDING → COMPLETE
+    amount: Optional[str]                # e.g. "5.00"
+    recipient: Optional[str]             # 0x... address
+    # Compliance & policy metadata
+    wallet_balance_after: Optional[str]  # Balance after payment
+    daily_spent: Optional[str]           # How much spent today
+    daily_remaining: Optional[str]       # Budget remaining today
+    # Rejection info
+    reason: Optional[str]                # Why it was rejected
+    code: Optional[str]                  # Machine-readable code
+    suggestion: Optional[str]            # Actionable fix suggestion
+    # Full validation pipeline results
+    validation: Dict[str, Any]           # Per-step validation outcomes
+```
+
+**Example `validation` field:**
+```python
+{
+    "amount": "valid",
+    "recipient": "valid",
+    "expiry": "valid",
+    "nonce": "valid",
+    "wallet": "valid",
+    "kyc": "valid",
+    "sbt": "valid",
+    "policy_registration": "valid",
+    "policy_per_request": "valid",
+    "policy_hourly": "valid",
+    "policy_daily": "valid"
+}
+```
+
+### `PaymentReceipt`
+
+```python
+@dataclass
+class PaymentReceipt:
+    success: bool
+    status: str              # "PENDING" | "COMPLETE"
+    txId: Optional[str]
+    txHash: Optional[str]
+    errorReason: Optional[str]
+```
+
+### `TransactionHistoryItem`
+
+```python
+@dataclass
+class TransactionHistoryItem:
+    txId: str
+    type: str
+    amount: str
+    state: str
+    createdAt: str
+    providerAddress: Optional[str]
+    txHash: Optional[str]
+    memo: Optional[str]      # NEW in v0.7.0
+```
+
+---
+
+## 🛑 Exception Handling
 
 The SDK provides robust error mapping to help your agent gracefully recover from failures. You can import these directly from the `modexia` package:
 
@@ -182,6 +354,43 @@ graph TD;
     ModexiaError-->ModexiaAuthError["ModexiaAuthError: Key/Auth Issues"];
     ModexiaError-->ModexiaPaymentError["ModexiaPaymentError: Insufficient Funds / API Responses with success=False"];
     ModexiaError-->ModexiaNetworkError["ModexiaNetworkError: Connection Drops / Invalid JSON payloads"];
+```
+
+---
+
+## 🔐 Intent Token Format
+
+The intent token is a compact, tamper-proof string:
+
+```
+base64url(canonical_json).hex(hmac_sha256(canonical_json, api_key))
+```
+
+**Canonical JSON** is the payload with keys sorted alphabetically and serialized with no whitespace:
+
+```json
+{"action":"transfer","amount":"5.0","currency":"USDC","expiresAt":1715270400000,"idempotencyKey":"uuid","memo":"Paying for API call","nonce":1715270100000,"recipient":"0x..."}
+```
+
+The HMAC-SHA256 signature uses your API key as the secret. The backend verifies this signature using constant-time comparison to prevent timing attacks.
+
+---
+
+## 🔄 Migration from v0.6.x
+
+v0.7.0 is **fully backwards compatible**. No changes needed for existing code.
+
+**What's different internally:** The `transfer()` method now routes through the same validation pipeline as `pay()`. Your existing code gets compliance enforcement for free.
+
+**To adopt v2 features:**
+```diff
+- receipt = client.transfer("0x...", 5.0)
+- if receipt.success:
+-     print(f"TX: {receipt.txId}")
+
++ result = client.pay("0x...", 5.0, memo="Paying for compute")
++ if result.status == "executed":
++     print(f"TX: {result.txId}, Remaining: {result.daily_remaining}")
 ```
 
 ---
