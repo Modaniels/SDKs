@@ -1,0 +1,48 @@
+name: Publish SDK to PyPI
+
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: read
+  id-token: write  # Required for PyPI OIDC
+
+jobs:
+  build-and-publish:
+    name: Build and Publish
+    runs-on: ubuntu-latest
+    environment: pypi
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install build tools
+        run: python -m pip install --upgrade pip build
+
+      - name: Verify version matches tag
+        run: |
+          TAG="${{ github.event.release.tag_name }}"
+          # Handle tags like v0.8.0 or sdk/v0.8.0
+          EXPECTED=$(echo "$TAG" | sed -E 's/^(sdk\/)?v//')
+          ACTUAL=$(python -c "
+          import tomllib
+          with open('pyproject.toml', 'rb') as f:
+              data = tomllib.load(f)
+          print(data['project']['version'])
+          ")
+          echo "Expected version: $EXPECTED"
+          echo "Actual version:   $ACTUAL"
+          if [ "$EXPECTED" != "$ACTUAL" ]; then
+            echo "::error::Version mismatch! Tag says $EXPECTED but pyproject.toml says $ACTUAL"
+            exit 1
+          fi
+
+      - name: Build distribution
+        run: python -m build --sdist --wheel
+
+      - name: Publish to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
