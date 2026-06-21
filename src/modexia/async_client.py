@@ -10,18 +10,22 @@ import re
 import time
 import asyncio
 import hashlib
+import hmac
+import json
 import logging
 import httpx
 from datetime import datetime
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, List
 
 from .client import ModexiaAuthError, ModexiaPaymentError, ModexiaNetworkError
 from .models import (
     PaymentReceipt, TransactionHistoryItem, TransactionHistoryResponse,
-    ChannelReceipt, ConsumeResponse, ChannelStatus
+    ChannelReceipt, ConsumeResponse, ChannelStatus, IntentResult,
+    NanopayBalance, NanopayDepositResult, NanopayWithdrawResult, NanopayResult,
 )
 
 import uuid
+import base64
 
 logger = logging.getLogger("modexia.async")
 logger.addHandler(logging.NullHandler())
@@ -35,7 +39,7 @@ class AsyncModexiaClient:
         await client.transfer(recipient, amount=1.0)
     """
 
-    VERSION = "0.5.0"
+    VERSION = "0.7.0"
     DEFAULT_TIMEOUT = 15.0
 
     URLS = {
@@ -114,11 +118,14 @@ class AsyncModexiaClient:
                 
                 if response.status_code >= 400 and response.status_code != 402:
                     try: 
-                        err = response.json().get('error', response.text)
+                        err_data = response.json()
+                        err_msg = err_data.get('error', response.text)
+                        err_code = err_data.get('code')
                     except Exception: 
-                        excerpt = response.text[:512]
-                        err = f"HTTP {response.status_code} at {endpoint}: {excerpt}"
-                    raise ModexiaPaymentError(err)
+                        err_msg = response.text[:512]
+                        err_code = None
+                        err_data = {}
+                    raise ModexiaPaymentError(err_msg, code=err_code, details=err_data)
                 
                 try:
                     data = response.json() if response.content else {}
@@ -127,7 +134,9 @@ class AsyncModexiaClient:
                     raise ModexiaNetworkError(f"HTTP {response.status_code} returned non-JSON data: {excerpt}")
                 
                 if response.status_code == 200 and isinstance(data, dict) and data.get("success") is False:
-                    raise ModexiaPaymentError(data.get("error", data.get("errorReason", "Unknown logical API error")))
+                    err_msg = data.get("error", data.get("errorReason", "Unknown logical API error"))
+                    err_code = data.get("code")
+                    raise ModexiaPaymentError(err_msg, code=err_code, details=data)
                     
                 return data
                 
@@ -146,7 +155,7 @@ class AsyncModexiaClient:
         """Alias for `retrieve_balance()`."""
         return await self.retrieve_balance()
 
-    async def transfer(self, recipient: str, amount: float, idempotency_key: Optional[str] = None, wait: bool = True) -> PaymentReceipt:
+    async def transfer(self, recipient: str, amount: float, idempotency_key: Optional[str] = None, wait: bool = True, memo: Optional[str] = None) -> PaymentReceipt:
         """Create a payment from the authenticated agent to `recipient` asynchronously."""
         if not idempotency_key:
             intent_str = f"{recipient}_{amount}_{datetime.now().strftime('%Y-%m-%d-%H')}"
@@ -155,6 +164,8 @@ class AsyncModexiaClient:
             ikey = idempotency_key
             
         payload = {"providerAddress": recipient, "amount": str(amount), "idempotencyKey": ikey}
+        if memo:
+            payload["memo"] = memo
         data = await self._request("POST", "/api/v1/agent/pay", json=payload)
 
         if wait and data.get("success"):
@@ -219,7 +230,9 @@ class AsyncModexiaClient:
             success=data.get("success", False),
             status="PENDING",
             txId=data.get("txId"),
-            errorReason=data.get("error")
+            errorReason=data.get("error"),
+            txIds=data.get("txIds", []),
+            axelarScanUrls=data.get("axelarScanUrls", [])
         )
 
     async def get_history(self, limit: int = 5) -> TransactionHistoryResponse:
@@ -234,12 +247,125 @@ class AsyncModexiaClient:
                 state=t.get("state", ""),
                 createdAt=t.get("createdAt", ""),
                 providerAddress=t.get("providerAddress"),
-                txHash=t.get("txHash")
+                txHash=t.get("txHash"),
+                memo=t.get("memo"),
             ))
             
         return TransactionHistoryResponse(
             transactions=transactions,
             hasMore=data.get("hasMore", False)
+        )
+
+    # ═══════════════════════════════════════════════════════════════════
+    #  INTENT-TO-PAY — Signed Payment Intents (v2 API)
+    # ═══════════════════════════════════════════════════════════════════
+
+    def create_intent(
+        self,
+        recipient: str,
+        amount: float,
+        memo: Optional[str] = None,
+        action: str = "transfer",
+        ttl_seconds: int = 300,
+    ) -> str:
+        """Create and sign a payment intent token (sync — no I/O needed)."""
+        import base64
+
+        now_ms = int(time.time() * 1000)
+        payload = {
+            "action": action,
+            "amount": str(amount),
+            "currency": "USDC",
+            "expiresAt": now_ms + (ttl_seconds * 1000),
+            "idempotencyKey": str(uuid.uuid4()),
+            "nonce": now_ms,
+            "recipient": recipient,
+        }
+        if memo:
+            payload["memo"] = memo
+
+        canonical = json.dumps(payload, sort_keys=True, separators=(',', ':'))
+        signature = hmac.new(
+            self.api_key.encode(),
+            canonical.encode(),
+            hashlib.sha256,
+        ).hexdigest()
+
+        payload_b64 = base64.urlsafe_b64encode(canonical.encode()).decode().rstrip('=')
+        return f"{payload_b64}.{signature}"
+
+    async def submit_intent(self, intent_token: str) -> IntentResult:
+        """Submit a signed intent token to the v2 intent API."""
+        data = await self._request("POST", "/api/v2/intents/submit", json={"intent_token": intent_token})
+        return self._build_intent_result(data)
+
+    async def pay(self, recipient: str, amount: float, memo: Optional[str] = None, wait: bool = True) -> IntentResult:
+        """High-level intent-based payment — create, sign, submit, and optionally poll."""
+        token = self.create_intent(recipient, amount, memo=memo)
+        result = await self.submit_intent(token)
+
+        if wait and result.status == "executed" and result.txId:
+            try:
+                receipt = await self._poll_status(result.txId)
+                result.txState = receipt.status
+            except (TimeoutError, ModexiaPaymentError) as exc:
+                logger.debug(
+                    "Non-fatal error while polling tx status for txId=%s; returning intent result without txState update: %s",
+                    result.txId,
+                    exc,
+                )
+
+        return result
+
+    async def get_intent(self, intent_id: str) -> IntentResult:
+        """Retrieve the status of a previously submitted intent."""
+        data = await self._request("GET", f"/api/v2/intents/{intent_id}")
+        return IntentResult(
+            status=data.get("status", "unknown"),
+            intent_id=data.get("intent_id"),
+            txId=data.get("circleTxId"),
+            amount=data.get("amount"),
+            recipient=data.get("recipient"),
+            reason=data.get("rejectionReason"),
+            code=data.get("rejectionCode"),
+            validation=data.get("validation") or {},
+        )
+
+    async def list_intents(self, limit: int = 20) -> List[IntentResult]:
+        """List recent payment intents."""
+        data = await self._request("GET", f"/api/v2/intents?limit={limit}")
+        return [
+            IntentResult(
+                status=i.get("status", ""),
+                intent_id=i.get("id"),
+                txId=i.get("circleTxId"),
+                amount=str(i.get("amount", "")),
+                recipient=i.get("recipient"),
+                code=i.get("rejectionCode"),
+            )
+            for i in data.get("data", [])
+        ]
+
+    @staticmethod
+    def _build_intent_result(data: Dict[str, Any]) -> IntentResult:
+        """Parse a v2 intent API response into an IntentResult."""
+        tx = data.get("tx") or {}
+        meta = data.get("metadata") or {}
+        return IntentResult(
+            status=data.get("status", "unknown"),
+            intent_id=data.get("intent_id"),
+            txId=tx.get("txId"),
+            txIds=tx.get("txIds"),
+            txState=tx.get("state"),
+            amount=tx.get("amount") or data.get("amount"),
+            recipient=tx.get("recipient") or data.get("recipient"),
+            wallet_balance_after=meta.get("wallet_balance_after"),
+            daily_spent=meta.get("daily_spent"),
+            daily_remaining=meta.get("daily_remaining"),
+            reason=data.get("reason"),
+            code=data.get("code"),
+            suggestion=data.get("suggestion"),
+            validation=data.get("validation") or {},
         )
 
     # ═══════════════════════════════════════════════════════════════════
@@ -321,6 +447,154 @@ class AsyncModexiaClient:
                 state=d.get("state", ""),
             ))
         return channels
+
+    # ═══════════════════════════════════════════════════════════════════
+    #  NANOPAY — Circle Gateway Nanopayments (x402)
+    # ═══════════════════════════════════════════════════════════════════
+
+    async def nanopay_activate(self) -> dict:
+        """Enable Circle Gateway nanopayments for this agent."""
+        data = await self._request("POST", "/api/v2/nanopay/activate")
+        return data.get("data", data)
+
+    async def nanopay_balance(self) -> NanopayBalance:
+        """Get the agent's Circle Gateway nanopayment balance."""
+        data = await self._request("GET", "/api/v2/nanopay/balance")
+        d = data.get("data", data)
+        return NanopayBalance(
+            available=d.get("available", "0"),
+            total=d.get("total", "0"),
+            withdrawing=d.get("withdrawing", "0"),
+            withdrawable=d.get("withdrawable", "0"),
+            auto_refill_enabled=d.get("autoRefillEnabled", False),
+            auto_refill_threshold=d.get("autoRefillThreshold"),
+            auto_refill_amount=d.get("autoRefillAmount"),
+        )
+
+    async def nanopay_deposit(self, amount: float) -> NanopayDepositResult:
+        """Deposit USDC from the agent's SCA wallet into the Gateway."""
+        data = await self._request("POST", "/api/v2/nanopay/deposit", json={"amount": amount})
+        d = data.get("data", data)
+        bal_raw = d.get("gatewayBalanceAfter", {})
+        bal = NanopayBalance(
+            available=bal_raw.get("available", "0"),
+            total=bal_raw.get("total", "0"),
+            withdrawing=bal_raw.get("withdrawing", "0"),
+            withdrawable=bal_raw.get("withdrawable", "0"),
+        ) if bal_raw else None
+        return NanopayDepositResult(
+            success=True,
+            deposit_tx_id=d.get("depositTxId"),
+            amount=d.get("amount"),
+            gateway_balance_after=bal,
+        )
+
+    async def nanopay_withdraw(self, amount: float) -> NanopayWithdrawResult:
+        """Withdraw USDC from Gateway back to the agent's SCA wallet."""
+        data = await self._request("POST", "/api/v2/nanopay/withdraw", json={"amount": amount})
+        d = data.get("data", data)
+        return NanopayWithdrawResult(
+            success=True,
+            withdraw_tx_id=d.get("withdrawTxId"),
+            amount=d.get("amount"),
+        )
+
+    async def nanopay(self, url: str, method: str = "GET", **kwargs) -> NanopayResult:
+        """Make a request to an x402-protected resource using nanopayments."""
+        headers = kwargs.pop("headers", {}) or {}
+
+        # Step 1: Initial request
+        async with httpx.AsyncClient(timeout=self.timeout) as temp_client:
+            response = await temp_client.request(method, url, headers=headers, **kwargs)
+
+        if response.status_code != 402:
+            try:
+                resp_data = response.json()
+            except Exception:
+                resp_data = response.text
+            return NanopayResult(success=response.is_success, status_code=response.status_code, data=resp_data)
+
+        # Step 2: Parse 402 payment requirements
+        try:
+            pay_info = response.json()
+        except Exception:
+            pay_info = {}
+
+        pay_to = pay_info.get("payTo") or pay_info.get("recipient") or pay_info.get("to", "")
+        pay_amount = pay_info.get("maxAmountRequired") or pay_info.get("amount") or pay_info.get("price", "0")
+
+        if not pay_to:
+            return NanopayResult(success=False, status_code=402, data=pay_info)
+
+        # Step 3: Get EIP-3009 signature from backend
+        value_str = str(pay_amount)
+        value_wei = str(int(float(value_str) * 1e6)) if "." in value_str else value_str
+
+        try:
+            sign_data = await self._request("POST", "/api/v2/nanopay/sign", json={"to": pay_to, "value": value_wei})
+        except ModexiaPaymentError as e:
+            if getattr(e, "code", None) == "INSUFFICIENT_GATEWAY_BALANCE":
+                refill = e.details.get("autoRefill", {})
+                if refill.get("enabled") and refill.get("amount"):
+                    try:
+                        refill_amt = float(refill["amount"])
+                        logger.info("Auto-refilling gateway with %s USDC", refill_amt)
+                        await self.nanopay_deposit(refill_amt)
+                    except ModexiaPaymentError as refill_err:
+                        raise ModexiaPaymentError(
+                            f"Auto-refill failed: {refill_err}. "
+                            f"Fund your main wallet to continue.",
+                            code="REFILL_FAILED",
+                            details=getattr(refill_err, "details", {}),
+                        ) from refill_err
+                    
+                    sign_data = await self._request("POST", "/api/v2/nanopay/sign", json={"to": pay_to, "value": value_wei})
+                else:
+                    raise
+            else:
+                raise
+        signed = sign_data.get("data", sign_data)
+        signature = signed.get("signature", "")
+        payload = signed.get("payload", {})
+
+        # Step 4: Retry with payment header
+        payment_header = base64.b64encode(json.dumps({"signature": signature, "payload": payload}).encode()).decode()
+        headers["X-PAYMENT-SIGNATURE"] = payment_header
+        headers["X-PAYMENT"] = payment_header
+
+        async with httpx.AsyncClient(timeout=self.timeout) as temp_client:
+            retry_resp = await temp_client.request(method, url, headers=headers, **kwargs)
+
+        try:
+            resp_data = retry_resp.json()
+        except Exception:
+            resp_data = retry_resp.text
+
+        gw_bal_raw = signed.get("gatewayBalance", {})
+        gw_balance = NanopayBalance(
+            available=gw_bal_raw.get("available", "0"), total=gw_bal_raw.get("total", "0"),
+            withdrawing=gw_bal_raw.get("withdrawing", "0"), withdrawable=gw_bal_raw.get("withdrawable", "0"),
+        ) if gw_bal_raw else None
+
+        return NanopayResult(
+            success=retry_resp.is_success, status_code=retry_resp.status_code,
+            data=resp_data, amount_paid=str(float(value_wei) / 1e6),
+            signature=signature, gateway_balance=gw_balance,
+        )
+
+    async def nanopay_settings(self, auto_refill_enabled: bool = None,
+                               auto_refill_threshold: float = None,
+                               auto_refill_amount: float = None) -> dict:
+        """Update nanopay auto-refill preferences."""
+        body = {}
+        if auto_refill_enabled is not None:
+            body["autoRefillEnabled"] = auto_refill_enabled
+        if auto_refill_threshold is not None:
+            body["autoRefillThreshold"] = auto_refill_threshold
+        if auto_refill_amount is not None:
+            body["autoRefillAmount"] = auto_refill_amount
+        data = await self._request("PUT", "/api/v2/nanopay/settings", json=body)
+        return data.get("data", data)
 
     async def smart_fetch(self, method: str, url: str, **kwargs) -> httpx.Response:
         """Fetch an external resource asynchronously and auto-pay 402 paywalls.

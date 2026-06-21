@@ -14,6 +14,8 @@ from .async_client import AsyncModexiaClient
 from .models import (
     PaymentReceipt, TransactionHistoryItem, TransactionHistoryResponse,
     ChannelReceipt, ConsumeResponse, ChannelStatus,
+    IntentResult,
+    NanopayBalance, NanopayDepositResult, NanopayWithdrawResult, NanopayResult,
 )
 
 __all__ = [
@@ -29,4 +31,9 @@ __all__ = [
     "ChannelReceipt",
     "ConsumeResponse",
     "ChannelStatus",
+    "IntentResult",
+    "NanopayBalance",
+    "NanopayDepositResult",
+    "NanopayWithdrawResult",
+    "NanopayResult",
 ]

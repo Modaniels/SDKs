@@ -5,7 +5,7 @@ from modexia.models import PaymentReceipt, TransactionHistoryResponse
 import hashlib
 from datetime import datetime
 
-API_KEY = "mx_test_25f8ed6a53ef4944835da91990597889"
+API_KEY = "mx_test_00000000000000000000000000000000"
 
 @pytest.fixture
 def client():

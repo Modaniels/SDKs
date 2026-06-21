@@ -91,3 +91,63 @@ class IntentResult:
     # Full validation pipeline results
     validation: Dict[str, Any] = field(default_factory=dict)
 
+
+# ═══════════════════════════════════════════════════════════════════
+#  NANOPAY — Circle Gateway Nanopayment models
+# ═══════════════════════════════════════════════════════════════════
+
+@dataclass
+class NanopayBalance:
+    """Circle Gateway Wallet balance.
+
+    Returned by ``ModexiaClient.nanopay_balance()``.
+    The Gateway balance is separate from the agent's main SCA wallet balance.
+    """
+    available: str          # Available for nanopayments (USDC)
+    total: str              # Total deposited (USDC)
+    withdrawing: str        # Currently being withdrawn (USDC)
+    withdrawable: str       # Ready to withdraw (USDC)
+    auto_refill_enabled: bool = False
+    auto_refill_threshold: Optional[str] = None
+    auto_refill_amount: Optional[str] = None
+
+
+@dataclass
+class NanopayDepositResult:
+    """Result of depositing USDC into the Circle Gateway.
+
+    Returned by ``ModexiaClient.nanopay_deposit(amount)``.
+    The deposit is an on-chain transaction that moves USDC from the agent's
+    SCA wallet into the Gateway Wallet contract.
+    """
+    success: bool
+    deposit_tx_id: Optional[str] = None
+    amount: Optional[str] = None
+    gateway_balance_after: Optional[NanopayBalance] = None
+
+
+@dataclass
+class NanopayWithdrawResult:
+    """Result of withdrawing USDC from the Circle Gateway.
+
+    Returned by ``ModexiaClient.nanopay_withdraw(amount)``.
+    """
+    success: bool
+    withdraw_tx_id: Optional[str] = None
+    amount: Optional[str] = None
+
+
+@dataclass
+class NanopayResult:
+    """Result of an x402 nanopayment transaction.
+
+    Returned by ``ModexiaClient.nanopay(url)``.
+    Contains both the HTTP response data from the x402 resource
+    and the payment metadata (how much was paid, transfer status, etc.).
+    """
+    success: bool
+    status_code: int                     # HTTP status of the final response
+    data: Any = None                     # The actual resource data
+    amount_paid: Optional[str] = None    # How much USDC was paid
+    signature: Optional[str] = None      # The EIP-3009 signature used
+    gateway_balance: Optional[NanopayBalance] = None

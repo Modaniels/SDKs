@@ -1,9 +1,3 @@
----
-noteId: "8d8416b04bd411f18bfe97159fe8ca5e"
-tags: []
-
----
-
 # Changelog
 
 All notable changes to the Modexia Python SDK (`modexiaagentpay`) will be documented in this file.
